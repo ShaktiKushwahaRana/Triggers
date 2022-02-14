@@ -1,0 +1,106 @@
+/*
+Create the object called “Customer” and create the Master-Detail Relationship on Customer object so that Customer will be 
+the related list to Account record. Create the field called “Account Manager” on Customer object which is lookup to the user object.
+Now Logic is when we create Customer record for account record, then the user in Account Manager field will be automatically added to
+Account Team of that associated account.
+*/
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+TRIGGER
+----------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+trigger Add_Account_Team on Customer__c (before insert, before update, before delete) {
+    try{
+        if(Trigger.isInsert){
+            List<Customer__c> customer=new List<Customer__c>();
+            for(Customer__c cust :Trigger.new){
+                customer.add(cust);
+            }
+            Add_Account_Team_Controller.AddToAccountTeam(customer);
+        }
+        if(Trigger.isUpdate){
+         List<Customer__c> customer=new List<Customer__c>();
+         List<Id>userIds=new List<Id>();
+         List<Id>accId=new List<id>();
+         for(Customer__c cstmer :Trigger.new){
+             Customer__c previousAccountManager=Trigger.oldMap.get(cstmer.id);
+             Customer__c newAccountManager=Trigger.newMap.get(cstmer.id);
+             if(previousAccountManager.Account_Manager__c!= newAccountManager.Account_Manager__c){ 
+                 customer.add(cstmer);
+                 userIds.add(previousAccountManager.Account_Manager__c);
+                 accId.add(cstmer.Account__c);}
+         }
+        Add_Account_Team_Controller.updateAccountTeam(customer,userIds,accId);
+        }
+        if(Trigger.isDelete){	
+        List<Customer__c> customer=new List<Customer__c>();
+        for(Customer__c cust :Trigger.old){
+             customer.add(cust);
+         }
+         Add_Account_Team_Controller.deleteFromAccountTeam(customer);
+        }
+        }
+    Catch(Exception e){
+        System.debug('Exception have Occured :'+e);
+    }
+}
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+CONTROLLER
+_______________________________________________________________________________________________________________________________________________________
+
+public class Add_Account_Team_Controller {
+    public static void AddToAccountTeam(List<Customer__c>customer){
+        List<AccountTeamMember> uRecord=new List<AccountTeamMember>();
+        for(Customer__c cc:customer){
+            if(cc.Account__c !=null){
+                if(cc.Account_Manager__c !=null){
+                    AccountTeamMember acctTM = new AccountTeamMember();
+                    acctTM.AccountId=cc.Account__c;
+                    acctTM.userId=cc.Account_Manager__c;
+                    uRecord.add(acctTM);
+                }
+            }
+        }
+        insert uRecord;
+    }
+    public static void updateAccountTeam(List<Customer__c>customer,List<Id>uId,List<id>accId){
+       List<AccountTeamMember> uRecord=new List<AccountTeamMember>();
+       list<AccountTeamMember> deleteAccTeam=[SELECT id from AccountTeamMember where AccountId in :accId AND userId in :uId];
+       if(customer.size()!=0){
+            for(Customer__c cc:customer){
+                if(cc.Account__c !=null){
+                    if(cc.Account_Manager__c !=null){
+                        AccountTeamMember acctTM = new AccountTeamMember();
+                    	acctTM.AccountId=cc.Account__c;
+                    	acctTM.userId=cc.Account_Manager__c;
+                    	uRecord.add(acctTM);
+                    }
+                }
+            }
+            delete deleteAccTeam;
+            insert uRecord;
+        }
+    } 
+    public static void deleteFromAccountTeam(List<Customer__c>customer)
+    {	
+        Set<id>accId=new Set<id>();
+        List<id>uId=new List<id>();
+        for(Customer__c cc:customer)
+        {	
+            if(cc.Account__c!=null)
+            {
+                if(cc.Account_Manager__c!=null)
+                {
+                    accId.add(cc.Account__c);
+                    uId.add(cc.Account_Manager__c);
+                }
+            }
+            
+        }
+        List<AccountTeamMember>acc=[Select id from AccountTeamMember where AccountId in :accId AND userId in :uId];
+        delete acc;
+    }
+    
+}
